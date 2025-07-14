@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Employee Management System</title>
+  <style>
+    :root {
+      --bg: #f2f2f2;
+      --text: #000;
+      --card: #fff;
+      --header: #007bff;
+    }
+
+    body.dark {
+      --bg: #1e1e1e;
+      --text: #eee;
+      --card: #2a2a2a;
+      --header: #0056b3;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 40px;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .dark-toggle {
+      position: fixed;
+      top: 15px;
+      right: 20px;
+      background: #ccc;
+      padding: 5px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 14px;
+      z-index: 999;
+    }
+
+    body.dark .dark-toggle {
+      background: #444;
+      color: white;
+    }
+
+    .container {
+      background: var(--card);
+      padding: 30px;
+      border-radius: 10px;
+      max-width: 800px;
+      margin: auto;
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    input, button {
+      padding: 10px;
+      margin: 10px 5px;
+      width: calc(50% - 20px);
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid #ccc;
+    }
+
+    button {
+      width: auto;
+      background: var(--header);
+      border: none;
+      color: white;
+      font-weight: bold;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 30px;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 12px;
+      text-align: center;
+    }
+
+    th {
+      background: var(--header);
+      color: white;
+    }
+
+    .action-btn {
+      margin: 0 5px;
+      padding: 5px 10px;
+      font-size: 14px;
+    }
+
+    .edit-btn {
+      background: #ffc107;
+      color: #000;
+    }
+
+    .delete-btn {
+      background: #dc3545;
+      color: white;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .logout-btn {
+      background: #dc3545;
+      float: right;
+      margin: -20px 0 10px 0;
+    }
+
+    .small-note {
+      font-size: 13px;
+      color: gray;
+      margin-top: -10px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .full-width {
+      width: 94%;
+    }
+
+    #credForm input {
+      width: 90%;
+    }
+  </style>
+</head>
+<body>
+  <div class="dark-toggle" onclick="toggleDarkMode()">🌓 Theme</div>
+
+  <div class="container" id="login-section">
+    <h2>Admin Login</h2>
+    <div class="small-note">Default: <b>admin / admin123</b> (You can change it later)</div>
+    <form id="loginForm" onsubmit="return login()">
+      <input type="text" id="login-username" placeholder="Username" required><br>
+      <input type="password" id="login-password" placeholder="Password" required><br>
+      <button type="submit">Login</button>
+    </form>
+  </div>
+
+  <div class="container hidden" id="employee-section">
+    <h2>Employee Management System</h2>
+    <button class="logout-btn" onclick="logout()">Logout</button>
+    <button onclick="toggleCredForm()" style="float:left; background:#28a745;">Update Credentials</button>
+    <div style="clear: both;"></div>
+
+    <div id="credForm" class="hidden" style="margin-top: 20px; border: 1px solid #ccc; padding: 20px; border-radius: 8px;">
+      <h3>Update Admin Credentials</h3>
+      <input type="text" id="new-username" placeholder="New Username" class="full-width" required><br>
+      <input type="password" id="new-password" placeholder="New Password (min 5 chars)" class="full-width" required><br>
+      <button onclick="updateCredentials()">Save New Credentials</button>
+    </div>
+
+    <form id="empForm" onsubmit="return saveEmployee()">
+      <input type="text" id="name" placeholder="Full Name" required>
+      <input type="text" id="position" placeholder="Position" required>
+      <input type="number" id="salary" placeholder="Salary" required min="0">
+      <input type="text" id="email" placeholder="Email" required pattern="[^@]+@[^@]+\\.[a-zA-Z]{2,6}">
+      <input type="hidden" id="editIndex">
+      <button type="submit">Save</button>
+    </form>
+
+    <table id="employeeTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Position</th>
+          <th>Salary</th>
+          <th>Email</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const EMP_SECTION = document.getElementById('employee-section');
+    const LOGIN_SECTION = document.getElementById('login-section');
+    const EMP_FORM = document.getElementById('empForm');
+    const EMP_TABLE = document.querySelector('#employeeTable tbody');
+    const CRED_FORM = document.getElementById('credForm');
+
+    let employees = JSON.parse(localStorage.getItem('employees')) || [];
+    let credentials = JSON.parse(localStorage.getItem('adminCredentials')) || {
+      username: 'admin',
+      password: 'admin123'
+    };
+
+    function login() {
+      const username = document.getElementById('login-username').value.trim();
+      const password = document.getElementById('login-password').value.trim();
+      if (username === credentials.username && password === credentials.password) {
+        sessionStorage.setItem('loggedIn', 'true');
+        showEmployeeSection();
+      } else {
+        alert("Invalid credentials.");
+      }
+      return false;
+    }
+
+    function logout() {
+      sessionStorage.removeItem('loggedIn');
+      EMP_SECTION.classList.add('hidden');
+      LOGIN_SECTION.classList.remove('hidden');
+    }
+
+    function showEmployeeSection() {
+      LOGIN_SECTION.classList.add('hidden');
+      EMP_SECTION.classList.remove('hidden');
+      renderTable();
+    }
+
+    function toggleCredForm() {
+      CRED_FORM.classList.toggle('hidden');
+    }
+
+    function updateCredentials() {
+      const newUser = document.getElementById('new-username').value.trim();
+      const newPass = document.getElementById('new-password').value.trim();
+      if (!newUser || newPass.length < 5) {
+        alert("Please enter a valid username and a password with at least 5 characters.");
+        return;
+      }
+      credentials = { username: newUser, password: newPass };
+      localStorage.setItem('adminCredentials', JSON.stringify(credentials));
+      alert("Credentials updated successfully!");
+      document.getElementById('new-username').value = '';
+      document.getElementById('new-password').value = '';
+      CRED_FORM.classList.add('hidden');
+    }
+
+    function renderTable() {
+      EMP_TABLE.innerHTML = '';
+      employees.forEach((emp, i) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${emp.name}</td>
+          <td>${emp.position}</td>
+          <td>${emp.salary}</td>
+          <td>${emp.email}</td>
+          <td>
+            <button class="action-btn edit-btn" onclick="editEmployee(${i})">Edit</button>
+            <button class="action-btn delete-btn" onclick="deleteEmployee(${i})">Delete</button>
+          </td>
+        `;
+        EMP_TABLE.appendChild(row);
+      });
+    }
+
+    function saveEmployee() {
+      const name = document.getElementById('name').value.trim();
+      const position = document.getElementById('position').value.trim();
+      const salary = document.getElementById('salary').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const index = document.getElementById('editIndex').value;
+      if (!name || !position || !salary || !email) {
+        alert("Please fill all fields.");
+        return false;
+      }
+      const newEmp = { name, position, salary, email };
+      if (index === '') {
+        employees.push(newEmp);
+      } else {
+        employees[index] = newEmp;
+        document.getElementById('editIndex').value = '';
+      }
+      localStorage.setItem('employees', JSON.stringify(employees));
+      EMP_FORM.reset();
+      renderTable();
+      return false;
+    }
+
+    function editEmployee(i) {
+      const emp = employees[i];
+      document.getElementById('name').value = emp.name;
+      document.getElementById('position').value = emp.position;
+      document.getElementById('salary').value = emp.salary;
+      document.getElementById('email').value = emp.email;
+      document.getElementById('editIndex').value = i;
+    }
+
+    function deleteEmployee(i) {
+      if (confirm("Are you sure you want to delete this employee?")) {
+        employees.splice(i, 1);
+        localStorage.setItem('employees', JSON.stringify(employees));
+        renderTable();
+      }
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark');
+      localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+    }
+
+    window.onload = () => {
+      if (localStorage.getItem('theme') === 'dark') {
+        document.body.classList.add('dark');
+      }
+      if (sessionStorage.getItem('loggedIn') === 'true') {
+        showEmployeeSection();
+      }
+    };
+  </script>
+</body>
+</html>
